@@ -77,7 +77,7 @@ class User extends Authenticatable
     // Scopes
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('status', 'active');
     }
 
     public function scopeByRole($query, $role)
@@ -126,40 +126,42 @@ class User extends Authenticatable
         return false;
     }
 
-    public function getAuditableEmployees()
+        public function getAuditableEmployees()
     {
         $query = User::active();
 
         switch ($this->role) {
             case 'CEO':
-                // CEO can audit everyone except themselves
                 $query->where('id', '!=', $this->id);
                 break;
             case 'CBO':
-                // CBO can audit Manager and below
                 $query->whereIn('role', ['Manager', 'SBC', 'BC', 'Trainee']);
                 break;
             case 'Manager':
-                // Manager can audit SBC and below in their branch
                 $query->whereIn('role', ['SBC', 'BC', 'Trainee'])
-                      ->where('cabang_id', $this->cabang_id);
+                    ->where('cabang_id', $this->cabang_id);
                 break;
             case 'SBC':
-                // SBC can audit BC and Trainee under their supervision
                 $query->whereIn('role', ['BC', 'Trainee'])
-                      ->where('atasan_id', $this->id);
+                    ->where('atasan_id', $this->id);
                 break;
             case 'BC':
-                // BC can audit Trainee under their supervision
                 $query->where('role', 'Trainee')
-                      ->where('atasan_id', $this->id);
+                    ->where('atasan_id', $this->id);
                 break;
             default:
-                // Trainee cannot audit anyone
                 $query->whereRaw('1 = 0');
                 break;
         }
 
-        return $query->with(['cabang', 'jabatan', 'atasan'])->get();
+        return $query->with(['cabang', 'jabatan', 'atasan'])->paginate(10);
     }
+
+            // User.php
+        public function activities(): HasMany
+        {
+            return $this->hasMany(ActivityLog::class);
+        }
+
+
 }

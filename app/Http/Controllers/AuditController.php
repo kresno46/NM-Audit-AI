@@ -22,12 +22,18 @@ class AuditController extends Controller
     }
     
     public function selectEmployee()
-    {
-        $user = Auth::user();
-        $employees = $user->getAuditableEmployees();
-        
-        return view('audit.select-employee', compact('employees'));
-    }
+{
+    $user = Auth::user();
+    $employees = $user->getAuditableEmployees();
+
+    // ⬇ Tambahkan baris ini
+    $recent_activities = $user->activities()->latest()->take(5)->get();
+
+    // ⬇ Tambahkan ke return view
+    return view('audit.select-employee', compact('employees', 'recent_activities'));
+}
+
+
     
     public function startAudit(Request $request)
     {

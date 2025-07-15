@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,7 +59,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    });
+
+    Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
 });
+
+    
 });
 
 require __DIR__.'/auth.php';

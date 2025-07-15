@@ -51,6 +51,11 @@ class AuditSession extends Model
         return $this->belongsTo(User::class, 'audited_user_id');
     }
 
+    public function employee()
+    {
+        return $this->belongsTo(User::class, 'audited_user_id');
+    }
+
     public function auditLogs()
     {
         return $this->hasMany(AuditLog::class, 'session_id');
