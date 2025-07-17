@@ -22,10 +22,10 @@ class ChatbotController extends Controller
     public function getQuestion(Request $request)
     {
         $request->validate([
-            'session_id' => 'required|string',
+            'session_code' => 'required|string',
         ]);
         
-        $auditSession = AuditSession::where('session_id', $request->session_id)->firstOrFail();
+        $auditSession = AuditSession::where('session_code', $request->session_code)->firstOrFail();
         
         // Check authorization
         if (Auth::id() !== $auditSession->auditor_id) {
@@ -46,7 +46,7 @@ class ChatbotController extends Controller
             
             // Save question to database
             $question = AuditQuestion::create([
-                'audit_session_id' => $auditSession->id,
+                'audit_session_code' => $auditSession->id,
                 'question_number' => $nextQuestionNumber,
                 'question_text' => $questionData['question'],
                 'question_type' => $questionData['type'],
@@ -82,12 +82,12 @@ class ChatbotController extends Controller
     public function processAnswer(Request $request)
     {
         $request->validate([
-            'session_id' => 'required|string',
+            'session_code' => 'required|string',
             'question_id' => 'required|exists:audit_questions,id',
             'answer' => 'required|string|max:2000',
         ]);
         
-        $auditSession = AuditSession::where('session_id', $request->session_id)->firstOrFail();
+        $auditSession = AuditSession::where('session_code', $request->session_code)->firstOrFail();
         $question = AuditQuestion::findOrFail($request->question_id);
         
         // Check authorization
@@ -96,7 +96,7 @@ class ChatbotController extends Controller
         }
         
         // Check if question belongs to this session
-        if ($question->audit_session_id !== $auditSession->id) {
+        if ($question->audit_session_code !== $auditSession->id) {
             return response()->json(['error' => 'Question does not belong to this session'], 400);
         }
         
@@ -112,7 +112,7 @@ class ChatbotController extends Controller
             
             // Save answer
             $answer = AuditAnswer::create([
-                'audit_session_id' => $auditSession->id,
+                'audit_session_code' => $auditSession->id,
                 'audit_question_id' => $question->id,
                 'answer_text' => $request->answer,
                 'score' => $evaluation['score'],
@@ -146,7 +146,7 @@ class ChatbotController extends Controller
     
     public function getProgress($sessionId)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)->firstOrFail();
+        $auditSession = AuditSession::where('session_code', $sessionId)->firstOrFail();
         
         // Check authorization
         if (Auth::id() !== $auditSession->auditor_id) {

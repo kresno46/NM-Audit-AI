@@ -41,6 +41,12 @@ class AuditSession extends Model
         });
     }
 
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class, 'cabang_id');
+    }
+
+
     public function auditor()
     {
         return $this->belongsTo(User::class, 'auditor_id');
@@ -58,8 +64,32 @@ class AuditSession extends Model
 
     public function auditLogs()
     {
-        return $this->hasMany(AuditLog::class, 'session_id');
+        return $this->hasMany(AuditLog::class, 'session_code');
     }
+
+    public function questions()
+    {
+        return $this->hasMany(AuditQuestion::class, 'audit_session_code', 'id');
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(AuditAnswer::class, 'audit_session_code', 'id');
+    }
+
+    public function getProgressPercentage()
+    {
+        if ($this->total_questions == 0) return 0;
+        return round(($this->answered_questions / $this->total_questions) * 100, 2);
+    }
+
+    public function getDurationMinutes()
+    {
+        if (!$this->start_time) return 0;
+        return now()->diffInMinutes($this->start_time);
+    }
+
+
 
     // Calculate total score
     public function calculateTotalScore()

@@ -112,7 +112,7 @@ class AuditService
                 'question' => $question,
                 'kategori' => $kategori,
                 'question_number' => $questionNumber,
-                'session_id' => $sessionId
+                'session_code' => $sessionId
             ];
             
         } catch (\Exception $e) {
@@ -142,7 +142,7 @@ class AuditService
             
             // Save to audit log
             $auditLog = AuditLog::create([
-                'session_id' => $sessionId,
+                'session_code' => $sessionId,
                 'question_number' => $questionNumber,
                 'kategori' => $kategori,
                 'pertanyaan' => $question,

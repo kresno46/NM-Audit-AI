@@ -13,7 +13,7 @@ class AuditQuestion extends Model
     use HasFactory;
 
     protected $fillable = [
-        'audit_session_id',
+        'audit_session_code',
         'question_number',
         'question_text',
         'question_type',

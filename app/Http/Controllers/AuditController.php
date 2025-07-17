@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 
+
 class AuditController extends Controller
 {
     protected $openAIService;
@@ -55,7 +56,7 @@ class AuditController extends Controller
                                       ->first();
         
         if ($existingSession) {
-            return redirect()->route('audit.interview', $existingSession->session_id)
+            return redirect()->route('audit.interview', $existingSession->session_code)
                            ->with('warning', 'There is already an active audit session for this employee.');
         }
         
@@ -63,35 +64,51 @@ class AuditController extends Controller
         $sessionId = Str::uuid();
         
         $auditSession = AuditSession::create([
-            'employee_id' => $employee->id,
+            'audited_user_id' => $employee->id,
             'auditor_id' => $user->id,
             'cabang_id' => $employee->cabang_id,
-            'session_id' => $sessionId,
-            'status' => 'created',
+            'session_code' => $sessionId,
+            'status' => 'pending',
             'total_questions' => 0,
             'answered_questions' => 0,
         ]);
         
-        return redirect()->route('audit.interview', $sessionId);
+        return redirect()->route('audit.interview',$auditSession->session_code);
     }
     
-    public function interview($sessionId)
+    public function interview($sessionCode)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)
-                                   ->with(['employee', 'auditor', 'cabang'])
-                                   ->firstOrFail();
-        
-        // Check authorization
-        if (Auth::id() !== $auditSession->auditor_id) {
-            abort(403, 'Unauthorized access to audit session.');
+        $auditSession = AuditSession::with(['employee', 'auditor'])->where('session_code', $sessionCode)->firstOrFail();
+
+        $answered = $auditSession->answered_questions ?? 0;
+        $total = 5; // Misalnya 5 pertanyaan total
+
+        if ($answered >= $total) {
+            return view('audit.interview', compact('auditSession'))->with('currentQuestion', null);
         }
-        
-        return view('audit.interview', compact('auditSession'));
+
+        $categories = ['leadership', 'teamwork', 'recruitment', 'effectiveness', 'innovation'];
+        $kategori = $categories[$answered % count($categories)];
+
+        $questionNumber = $answered + 1;
+
+        $openai = new OpenAIService();
+        $pertanyaan = $openai->generateAuditQuestion($auditSession->employee->role->name ?? 'Karyawan', $kategori, $questionNumber);
+
+        $currentQuestion = [
+            'question_number' => $questionNumber,
+            'kategori' => $kategori,
+            'pertanyaan' => $pertanyaan,
+        ];
+
+        return view('audit.interview', compact('auditSession', 'currentQuestion'));
     }
+
+
     
     public function beginInterview(Request $request, $sessionId)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)->firstOrFail();
+        $auditSession = AuditSession::where('session_code', $sessionId)->firstOrFail();
         
         // Check authorization
         if (Auth::id() !== $auditSession->auditor_id) {
@@ -107,60 +124,117 @@ class AuditController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Interview started successfully',
-            'session_id' => $sessionId,
+            'session_code' => $sessionId,
         ]);
     }
+
+    public function submitAnswer(Request $request, $sessionCode)
+    {
+        $request->validate([
+            'jawaban' => 'required|string|max:1000',
+        ]);
+
+        $session = AuditSession::where('session_code', $sessionCode)->firstOrFail();
+
+        $openai = new OpenAIService();
+
+        // Tentukan kategori dan nomor pertanyaan saat ini
+        $categories = ['leadership', 'teamwork', 'recruitment', 'effectiveness', 'innovation'];
+        $totalAnswered = $session->answered_questions ?? 0;
+        $questionNumber = $totalAnswered + 1;
+
+        $kategori = $categories[intval(floor(($questionNumber - 1) / 1)) % count($categories)];
+
+        $pertanyaan = $openai->generateAuditQuestion($session->employee->role->name ?? 'Karyawan', $kategori, $questionNumber);
+
+        // Kirim ke GPT untuk analisa
+        $analysis = $openai->analyzeAnswer($pertanyaan, $request->jawaban, $kategori, $session->employee->role->name ?? 'Karyawan');
+
+        // Simpan ke audit_logs
+        AuditLog::create([
+            'session_code' => $session->session_code,
+            'question_number' => $questionNumber,
+            'kategori' => $kategori,
+            'pertanyaan' => $pertanyaan,
+            'jawaban' => $request->jawaban,
+            'ai_sentiment' => json_encode($analysis['sentiment']),
+            'skor_jawaban' => $analysis['skor'],
+            'ai_feedback' => $analysis['feedback'],
+            'answered_at' => now(),
+        ]);
+
+        // Update session progress
+        $session->answered_questions += 1;
+        $session->save();
+
+        return redirect()->route('audit.interview', $session->session_code);
+    }
+
     
     public function completeAudit(Request $request, $sessionId)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)->firstOrFail();
-        
-        // Check authorization
+        $auditSession = AuditSession::where('session_code', $sessionId)->firstOrFail();
+
         if (Auth::id() !== $auditSession->auditor_id) {
             abort(403, 'Unauthorized access to audit session.');
         }
-        
-        DB::transaction(function () use ($auditSession, $request) {
-            // Calculate overall score and recommendation
-            $answers = $auditSession->answers()->with('question')->get();
-            
-            if ($answers->isEmpty()) {
-                throw new \Exception('No answers found to complete the audit.');
-            }
-            
-            $totalScore = $answers->sum('score');
-            $maxPossibleScore = $answers->sum(function ($answer) {
-                return $answer->question->max_score;
-            });
-            
-            $overallScore = $maxPossibleScore > 0 ? ($totalScore / $maxPossibleScore) * 100 : 0;
-            
-            // Determine recommendation based on score
-            $recommendation = $this->determineRecommendation($overallScore);
-            
-            // Generate AI summary
-            $aiSummary = $this->openAIService->generateAuditSummary($auditSession, $answers);
-            
-            // Update audit session
+
+        DB::transaction(function () use ($auditSession) {
+            // Ambil semua log audit
+            $logs = $auditSession->auditLogs()->get()->map(function ($log) {
+                return [
+                    'pertanyaan' => $log->pertanyaan,
+                    'jawaban' => $log->jawaban,
+                    'skor_jawaban' => $log->skor_jawaban,
+                ];
+            })->toArray();
+
+            // Hitung skor per kategori
+            $skor = [
+                'leadership' => round($auditSession->auditLogs()->where('kategori', 'leadership')->avg('skor_jawaban'), 2),
+                'teamwork' => round($auditSession->auditLogs()->where('kategori', 'teamwork')->avg('skor_jawaban'), 2),
+                'recruitment' => round($auditSession->auditLogs()->where('kategori', 'recruitment')->avg('skor_jawaban'), 2),
+                'effectiveness' => round($auditSession->auditLogs()->where('kategori', 'effectiveness')->avg('skor_jawaban'), 2),
+                'innovation' => round($auditSession->auditLogs()->where('kategori', 'innovation')->avg('skor_jawaban'), 2),
+            ];
+            $skor['total'] = round(array_sum($skor) / count($skor), 2);
+
+            // Informasi user
+            $userInfo = [
+                'name' => $auditSession->employee->name,
+                'role' => $auditSession->employee->role,
+                'cabang' => $auditSession->employee->cabang->nama ?? '-'
+            ];
+
+            // Panggil GPT summary
+            $summary = $this->openAIService->generateFinalSummary($logs, $skor, $userInfo);
+
+            // Simpan ke audit_session
             $auditSession->update([
                 'status' => 'completed',
-                'end_time' => now(),
-                'overall_score' => $overallScore,
-                'recommendation' => $recommendation,
-                'notes' => $aiSummary,
+                'completed_at' => now(),
+                'skor_leadership' => $skor['leadership'],
+                'skor_teamwork' => $skor['teamwork'],
+                'skor_recruitment' => $skor['recruitment'],
+                'skor_effectiveness' => $skor['effectiveness'],
+                'skor_innovation' => $skor['innovation'],
+                'skor_total' => $skor['total'],
+                'catatan_ai' => $summary,
+                'rekomendasi_ai' => $summary['rekomendasi'] ?? null,
             ]);
         });
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Audit completed successfully',
             'redirect_url' => route('audit.result', $sessionId),
         ]);
     }
+
     
     public function result($sessionId)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)
+        $auditSession = AuditSession::where('session_code', $sessionId)
                                    ->with(['employee', 'auditor', 'cabang', 'answers.question'])
                                    ->firstOrFail();
         
@@ -182,7 +256,7 @@ class AuditController extends Controller
             'override_reason' => 'required|string|max:1000',
         ]);
         
-        $auditSession = AuditSession::where('session_id', $sessionId)->firstOrFail();
+        $auditSession = AuditSession::where('session_code', $sessionId)->firstOrFail();
         
         // Check authorization - only higher level users can override
         $user = Auth::user();
@@ -209,7 +283,7 @@ class AuditController extends Controller
     
     public function exportPdf($sessionId)
     {
-        $auditSession = AuditSession::where('session_id', $sessionId)
+        $auditSession = AuditSession::where('session_code', $sessionId)
                                    ->with(['employee', 'auditor', 'cabang', 'answers.question'])
                                    ->firstOrFail();
         
@@ -239,6 +313,19 @@ class AuditController extends Controller
             return 'Poor';
         }
     }
+
+    public function finish($sessionId)
+    {
+        $session = AuditSession::where('session_code', $sessionId)->firstOrFail();
+
+        if ($session->status !== 'completed') {
+            $session->update(['status' => 'completed']);
+        }
+
+        return redirect()->route('audit.result', $session->session_code)
+            ->with('success', 'Audit berhasil diselesaikan.');
+    }
+
     
     private function canOverride($user, $auditSession)
     {

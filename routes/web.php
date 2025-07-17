@@ -9,6 +9,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
 
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -23,7 +24,7 @@ Route::get('/home', function () {
     return redirect()->route('dashboard');
 })->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+    Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/audit-history', [DashboardController::class, 'auditHistory'])->name('audit.history');
@@ -39,31 +40,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/override/{sessionId}', [AuditController::class, 'overrideRecommendation'])->name('override');
         Route::get('/export/{sessionId}', [AuditController::class, 'exportPdf'])->name('export');
         Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'index'])->name('profile.index');
+        Route::post('/audit/answer/{sessionId}', [AuditController::class, 'submitAnswer'])->name('audit.answer');
+        Route::post('/finish/{sessionId}', [AuditController::class, 'finish'])->name('finish');
+
 
     });
     
-    // Chatbot API routes
-    Route::prefix('chatbot')->name('chatbot.')->group(function () {
-        Route::post('/question', [ChatbotController::class, 'getQuestion'])->name('question');
-        Route::post('/answer', [ChatbotController::class, 'processAnswer'])->name('answer');
-        Route::get('/progress/{sessionId}', [ChatbotController::class, 'getProgress'])->name('progress');
-    });
     
     // Reports
-    Route::prefix('reports')->name('reports.')->group(function () {
+     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('/analytics', [ReportController::class, 'analytics'])->name('analytics');
         Route::get('/export', [ReportController::class, 'export'])->name('export');
     });
 
     Route::middleware(['auth'])->group(function () {
-    Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
-    Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+        Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
     });
 
     Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-});
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::resource('/users', UserController::class);
+
+    });
 
     
 });

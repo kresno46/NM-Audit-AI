@@ -20,6 +20,50 @@ class OpenAIService
     /**
      * Generate audit question based on position and category
      */
+
+    public function generateQuestion($auditSession, $questionNumber)
+    {
+        $jabatan = $auditSession->employee->role;
+        
+        // Tentukan kategori berdasarkan urutan pertanyaan
+        $categories = ['leadership', 'teamwork', 'recruitment', 'effectiveness', 'innovation'];
+        $category = $categories[($questionNumber - 1) % count($categories)];
+        
+        $questionText = $this->generateAuditQuestion($jabatan, $category, $questionNumber);
+
+        return [
+            'question' => $questionText,
+            'type' => 'open-ended',
+            'category' => $category,
+            'max_score' => 5,
+        ];
+    }
+
+
+    private function determineCategory($session, $qNumber)
+    {
+        $categories = ['leadership', 'teamwork', 'recruitment', 'effectiveness', 'innovation'];
+        return $categories[($qNumber - 1) % count($categories)];
+    }
+
+
+    public function evaluateAnswer($question, $answerText, $auditSession)
+    {
+        $jabatan  = $auditSession->employee->role ?? 'Staff';
+        $kategori = $question->category;
+        $pertanyaan = $question->question_text;
+
+        $result = $this->analyzeAnswer($pertanyaan, $answerText, $kategori, $jabatan);
+
+        return [
+            'score'    => $result['skor'] ?? 3.0,
+            'feedback' => $result['feedback'] ?? 'Jawaban cukup baik namun bisa dikembangkan lagi.',
+            'details'  => $result
+        ];
+    }
+
+
+
     public function generateAuditQuestion($jabatan, $kategori, $questionNumber)
     {
         $prompt = $this->buildQuestionPrompt($jabatan, $kategori, $questionNumber);

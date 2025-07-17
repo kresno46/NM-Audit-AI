@@ -10,7 +10,7 @@ class AuditLog extends Model
     use HasFactory;
 
     protected $fillable = [
-        'session_id', 'question_number', 'kategori', 'pertanyaan', 
+        'session_code', 'question_number', 'kategori', 'pertanyaan', 
         'jawaban', 'ai_sentiment', 'skor_jawaban', 'ai_feedback', 'answered_at'
     ];
 
@@ -22,8 +22,14 @@ class AuditLog extends Model
 
     public function auditSession()
     {
-        return $this->belongsTo(AuditSession::class, 'session_id');
+        return $this->belongsTo(AuditSession::class, 'session_code');
     }
+
+    public function question()
+    {
+        return $this->belongsTo(AuditQuestion::class, 'question_id');
+    }
+
 
     // Get sentiment color class
     public function getSentimentColorClass()

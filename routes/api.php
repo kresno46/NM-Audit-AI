@@ -3,6 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuditApiController;
+use App\Http\Controllers\Api\ChatbotApiController;
+use App\Http\Controllers\ChatbotController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -17,4 +19,12 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::get('/statistics', [AuditApiController::class, 'getStatistics']);
     });
 });
+
+
+Route::middleware('auth:sanctum')->prefix('v1/chatbot')->group(function () {
+    Route::post('/question', [ChatbotController::class, 'getQuestion']);
+    Route::post('/answer', [ChatbotController::class, 'processAnswer']);
+    Route::get('/progress/{sessionId}', [ChatbotController::class, 'getProgress']);
+});
+
         

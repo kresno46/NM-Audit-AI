@@ -127,6 +127,7 @@
 </head>
 <body>
     <!-- Sidebar -->
+     
     <div class="sidebar" id="sidebar">
         <div class="p-3 border-bottom">
             <h5 class="mb-0">
@@ -156,7 +157,8 @@
                 <span class="sidebar-text">Reports</span>
             </a>
             
-            @if(auth()->user()->hasRole(['CEO', 'CBO']))
+            @if(auth()->check() && auth()->user() -> jabatan_id <= 5 || auth()->user()->role == 'Administrator')
+            {{-- Admin Section --}}
             <a class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
                 <i class="fas fa-users-cog"></i>
                 <span class="sidebar-text">Admin</span>

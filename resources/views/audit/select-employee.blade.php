@@ -88,9 +88,14 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <a href="{{ route('audit.start', $employee) }}" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-play"></i> Start Audit
-                                    </a>
+                                    <form action="{{ route('audit.start') }}" method="POST" style="display:inline;">
+                                        @csrf
+                                        <input type="hidden" name="employee_id" value="{{ $employee->id }}">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-play"></i> Start Audit
+                                        </button>
+                                    </form>
+
                                 </td>
                             </tr>
                             @endforeach

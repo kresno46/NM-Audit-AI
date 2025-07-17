@@ -178,9 +178,6 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('audit.show', $audit) }}" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
                                         @if($audit->status === 'completed')
                                         <a href="{{ route('audit.report', $audit) }}" class="btn btn-sm btn-outline-success">
                                             <i class="fas fa-file-pdf"></i>
