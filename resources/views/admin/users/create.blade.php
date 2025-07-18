@@ -90,8 +90,7 @@
         "SBC": 4,
         "BC": 5,
         "Trainee": 6,
-        "Administrator": 7,
-        "Superadmin": 8,
+        "Administrator": 0,
     };
 
     document.getElementById('roleSelect').addEventListener('change', function () {

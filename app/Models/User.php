@@ -83,7 +83,7 @@ class User extends Authenticatable
     // Scopes
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('is_active', true);
     }
 
     public function scopeByRole($query, $role)
@@ -131,6 +131,33 @@ class User extends Authenticatable
 
         return false;
     }
+
+    // App\Models\User.php
+    public function bawahanLangsung()
+    {
+        return $this->hasMany(User::class, 'atasan_id');
+    }
+
+    public function getAllBawahanIds()
+    {
+        $result = collect();
+        $direct = User::where('atasan_id', $this->id)->get();
+
+        foreach ($direct as $child) {
+            $result->push($child);
+            $result = $result->merge($child->getAllBawahanIds());
+        }
+
+        return $result;
+    }
+
+    public function semuaBawahanIds()
+    {
+        return $this->getAllBawahanIds()->pluck('id')->toArray();
+    }
+
+
+
 
         public function getAuditableEmployees()
     {

@@ -9,10 +9,18 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    public function index() {
-        $users = User::latest()->paginate(10);
-        return view('admin.users.index', compact('users'));
+    public function index()
+    {
+        $user = auth()->user();
+        $bawahanIds = $user->semuaBawahanIds(); // rapi
+
+        $users = User::whereIn('id', $bawahanIds)->latest()->paginate(10);
+
+        return view('admin.users.index', compact('users', 'bawahanIds'));
     }
+
+
+
 
     public function create() {
         $jabatan = Jabatan::all(); // Ambil semua jabatan
@@ -54,33 +62,50 @@ class UserController extends Controller
 
     }
 
-    public function edit($id)
-    {
-        $user = User::findOrFail($id);
-        return view('admin.users.edit', compact('user'));
+    
+
+
+
+
+public function edit($id)
+{
+    $user = User::findOrFail($id);
+    if (!in_array($user->id, auth()->user()->semuaBawahanIds())) {
+        abort(403, 'Akses ditolak. Bukan bawahan Anda.');
+    }
+    return view('admin.users.edit', compact('user'));
+}
+
+public function update(Request $request, $id)
+{
+    $user = User::findOrFail($id);
+    if (!in_array($user->id, auth()->user()->semuaBawahanIds())) {
+        abort(403, 'Akses ditolak. Bukan bawahan Anda.');
     }
 
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $id,
-        ]);
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email,' . $id,
+    ]);
 
-        $user = User::findOrFail($id);
-        $user->update($request->only(['name', 'email']));
+    $user->update($request->only(['name', 'email']));
 
-        return redirect()->route('admin.users.index')->with('success', 'User berhasil diupdate!');
+    return redirect()->route('admin.users.index')->with('success', 'User berhasil diupdate!');
+}
 
+public function destroy($id)
+{
+    $user = User::findOrFail($id);
+    if (!in_array($user->id, auth()->user()->semuaBawahanIds())) {
+        abort(403, 'Akses ditolak. Bukan bawahan Anda.');
     }
 
-    public function destroy($id)
-    {
-        $user = User::findOrFail($id);
-        $user->delete();
+    $user->delete();
 
-        return redirect()->route('admin.users.index')->with('success', 'User berhasil dihapus.');
-    }
+    return redirect()->route('admin.users.index')->with('success', 'User berhasil dihapus.');
+}
+
+
 
 
 

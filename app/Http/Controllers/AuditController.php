@@ -4,6 +4,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditSession;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\OpenAIService;
 use Illuminate\Http\Request;
@@ -51,7 +52,7 @@ class AuditController extends Controller
         }
         
         // Check if there's already an active audit session
-        $existingSession = AuditSession::where('employee_id', $employee->id)
+        $existingSession = AuditSession::where('audited_user_id', $employee->id)
                                       ->where('status', 'in_progress')
                                       ->first();
         
@@ -78,7 +79,7 @@ class AuditController extends Controller
     
     public function interview($sessionCode)
     {
-        $auditSession = AuditSession::with(['employee', 'auditor'])->where('session_code', $sessionCode)->firstOrFail();
+        $auditSession = AuditSession::with(['auditedUser', 'auditor'])->where('session_code', $sessionCode)->firstOrFail();
 
         $answered = $auditSession->answered_questions ?? 0;
         $total = 5; // Misalnya 5 pertanyaan total
@@ -93,7 +94,7 @@ class AuditController extends Controller
         $questionNumber = $answered + 1;
 
         $openai = new OpenAIService();
-        $pertanyaan = $openai->generateAuditQuestion($auditSession->employee->role->name ?? 'Karyawan', $kategori, $questionNumber);
+        $pertanyaan = $openai->generateAuditQuestion($auditSession->auditedUser->role ?? 'Karyawan', $kategori, $questionNumber);
 
         $currentQuestion = [
             'question_number' => $questionNumber,
@@ -145,10 +146,10 @@ class AuditController extends Controller
 
         $kategori = $categories[intval(floor(($questionNumber - 1) / 1)) % count($categories)];
 
-        $pertanyaan = $openai->generateAuditQuestion($session->employee->role->name ?? 'Karyawan', $kategori, $questionNumber);
+        $pertanyaan = $openai->generateAuditQuestion($session->auditedUser->role ?? 'Karyawan', $kategori, $questionNumber);
 
         // Kirim ke GPT untuk analisa
-        $analysis = $openai->analyzeAnswer($pertanyaan, $request->jawaban, $kategori, $session->employee->role->name ?? 'Karyawan');
+        $analysis = $openai->analyzeAnswer($pertanyaan, $request->jawaban, $kategori, $session->auditedUser->role ?? 'Karyawan');
 
         // Simpan ke audit_logs
         AuditLog::create([
@@ -201,9 +202,9 @@ class AuditController extends Controller
 
             // Informasi user
             $userInfo = [
-                'name' => $auditSession->employee->name,
-                'role' => $auditSession->employee->role,
-                'cabang' => $auditSession->employee->cabang->nama ?? '-'
+                'name' => $auditSession->auditedUser->name,
+                'role' => $auditSession->auditedUser->role,
+                'cabang' => $auditSession->auditedUser->cabang->nama ?? '-'
             ];
 
             // Panggil GPT summary
@@ -235,7 +236,7 @@ class AuditController extends Controller
     public function result($sessionId)
     {
         $auditSession = AuditSession::where('session_code', $sessionId)
-                                   ->with(['employee', 'auditor', 'cabang', 'answers.question'])
+                                   ->with(['auditedUser', 'auditor', 'cabang', 'answers.question'])
                                    ->firstOrFail();
         
         // Check authorization
@@ -284,7 +285,7 @@ class AuditController extends Controller
     public function exportPdf($sessionId)
     {
         $auditSession = AuditSession::where('session_code', $sessionId)
-                                   ->with(['employee', 'auditor', 'cabang', 'answers.question'])
+                                   ->with(['auditedUser', 'auditor', 'cabang', 'answers.question'])
                                    ->firstOrFail();
         
         // Check authorization
@@ -296,7 +297,7 @@ class AuditController extends Controller
         
         $pdf = Pdf::loadView('audit.pdf', compact('auditSession', 'answersByCategory'));
         
-        $fileName = 'audit_report_' . $auditSession->employee->employee_id . '_' . now()->format('Y-m-d') . '.pdf';
+        $fileName = 'audit_report_' . $auditSession->auditedUser->employee_id . '_' . now()->format('Y-m-d') . '.pdf';
         
         return $pdf->download($fileName);
     }

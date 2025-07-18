@@ -12,8 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('audit_sessions', function (Blueprint $table) {
-    $table->renameColumn('audited_user_id', 'employee_id');
-});
+            // Remove redundant employee_id field since we already have audited_user_id
+            $table->dropForeign(['employee_id']);
+            $table->dropColumn('employee_id');
+        });
     }
 
     /**
@@ -22,7 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('audit_sessions', function (Blueprint $table) {
-            //
+            // Add back the employee_id field if we need to rollback
+            $table->foreignId('employee_id')->nullable()->constrained('users');
         });
     }
 };

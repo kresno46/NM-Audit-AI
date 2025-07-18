@@ -45,7 +45,7 @@ class DashboardController extends Controller
 private function getBranchPerformance($user)
 {
     $query = \DB::table('audit_sessions')
-        ->join('users', 'audit_sessions.employee_id', '=', 'users.id')
+        ->join('users', 'audit_sessions.audited_user_id', '=', 'users.id')
         ->join('cabang', 'users.cabang_id', '=', 'cabang.id')
         ->select(
             'cabang.nama_cabang',
@@ -66,7 +66,7 @@ private function getBranchPerformance($user)
     
     private function getUpcomingAudits($user)
     {
-        $query = AuditSession::with(['employee'])
+        $query = AuditSession::with(['auditedUser'])
             ->where('status', 'in_progress')
             ->whereDate('started_at', '>=', now());
 
@@ -78,14 +78,14 @@ private function getBranchPerformance($user)
     public function auditHistory(Request $request)
     {
         $user = Auth::user();
-        $query = AuditSession::with(['employee', 'auditor', 'cabang']);
+        $query = AuditSession::with(['auditedUser', 'auditor', 'cabang']);
         
         // Filter based on user role
         if ($user->role === 'CEO') {
             // CEO can see all audits
         } elseif ($user->role === 'CBO') {
             // CBO can see audits for Manager and below
-            $query->whereHas('employee', function ($q) {
+            $query->whereHas('auditedUser', function ($q) {
                 $q->whereIn('role', ['Manager', 'SBC', 'BC', 'Trainee']);
             });
         } elseif ($user->role === 'Manager') {
@@ -95,7 +95,7 @@ private function getBranchPerformance($user)
             // SBC, BC can see audits they conducted or audits of their subordinates
             $query->where(function ($q) use ($user) {
                 $q->where('auditor_id', $user->id)
-                  ->orWhereHas('employee', function ($subQ) use ($user) {
+                  ->orWhereHas('auditedUser', function ($subQ) use ($user) {
                       $subQ->where('atasan_id', $user->id);
                   });
             });
@@ -115,7 +115,7 @@ private function getBranchPerformance($user)
         }
         
         if ($request->filled('employee')) {
-            $query->where('employee_id', $request->employee);
+            $query->where('audited_user_id', $request->employee);
         }
         
         $audits = $query->orderBy('created_at', 'desc')->paginate(20);
@@ -158,7 +158,7 @@ private function getBranchPerformance($user)
     
     private function getRecentAudits($user)
     {
-        $query = AuditSession::with(['employee', 'auditor', 'cabang']);
+        $query = AuditSession::with(['auditedUser', 'auditor', 'cabang']);
 
         $this->applyRoleFiltering($query, $user);
         
@@ -167,7 +167,7 @@ private function getBranchPerformance($user)
     
     private function getPendingAudits($user)
     {
-        $query = AuditSession::with(['employee', 'auditor', 'cabang']);
+        $query = AuditSession::with(['auditedUser', 'auditor', 'cabang']);
         $this->applyRoleFiltering($query, $user);
         
         return $query->orderBy('created_at', 'desc')->limit(5)->get();
@@ -213,7 +213,7 @@ private function getBranchPerformance($user)
             // CEO can see all
             return;
         } elseif ($user->role === 'CBO') {
-            $query->whereHas('employee', function ($q) {
+            $query->whereHas('auditedUser', function ($q) {
                 $q->whereIn('role', ['Manager', 'SBC', 'BC', 'Trainee']);
             });
         } elseif ($user->role === 'Manager') {
@@ -221,7 +221,7 @@ private function getBranchPerformance($user)
         } else {
             $query->where(function ($q) use ($user) {
                 $q->where('auditor_id', $user->id)
-                  ->orWhereHas('employee', function ($subQ) use ($user) {
+                  ->orWhereHas('auditedUser', function ($subQ) use ($user) {
                       $subQ->where('atasan_id', $user->id);
                   });
             });

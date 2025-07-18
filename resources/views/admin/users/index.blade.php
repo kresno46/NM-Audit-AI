@@ -17,17 +17,26 @@
                 <th>Name</th><th>Email</th><th>Role</th><th>Actions</th>
             </tr>
         </thead>
+@php
+    $bawahanIds = $bawahanIds ?? auth()->user()->semuaBawahanIds();
+@endphp
         <tbody>
+            
             @forelse($users as $user)
             <tr>
                 <td>{{ $user->name }}</td><td>{{ $user->email }}</td><td>{{ $user->role }}</td>
                 <td>
+                    @if(in_array($user->id, $bawahanIds))
                     <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-sm btn-warning">Edit</a>
                     <form action="{{ route('admin.users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this user?')">
                         @csrf @method('DELETE')
                         <button class="btn btn-sm btn-danger">Delete</button>
                     </form>
+                @else
+                    <em class="text-muted">Tidak diizinkan</em>
+                @endif
                 </td>
+
             </tr>
             @empty
             <tr><td colspan="4" class="text-center">No users found.</td></tr>
