@@ -4,7 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuditApiController;
 use App\Http\Controllers\Api\ChatbotApiController;
-use App\Http\Controllers\ChatbotController;
+// use App\Http\Controllers\ChatbotController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();

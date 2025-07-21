@@ -8,6 +8,7 @@ use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Api\ChatbotApiController;
 
 
 /*
@@ -45,6 +46,12 @@ Route::get('/home', function () {
 
 
     });
+
+    Route::prefix('chatbot')->middleware('auth')->group(function () {
+        Route::post('/question', [ChatbotController::class, 'getQuestion']);
+        Route::post('/answer', [ChatbotController::class, 'processAnswer']);
+        Route::get('/progress/{sessionId}', [ChatbotController::class, 'getProgress']);
+    });
     
     
     // Reports
@@ -65,6 +72,19 @@ Route::get('/home', function () {
         Route::resource('/users', UserController::class);
 
     });
+
+    Route::get('/test-openai', function () {
+    $response = Http::withToken(config('services.openai.api_key'))
+        ->post('https://api.openai.com/v1/chat/completions', [
+            'model' => 'gpt-3.5-turbo',
+            'messages' => [
+                ['role' => 'user', 'content' => 'Apa itu audit internal?'],
+            ],
+        ]);
+
+    return $response->json();
+});
+
 
     
 });

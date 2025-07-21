@@ -14,29 +14,130 @@ class OpenAIService
     public function __construct()
     {
         $this->apiKey = config('services.openai.api_key');
-        $this->baseUrl = 'https://api.openai.com/v1';
+        $this->baseUrl = config('services.openai.base_url', 'https://api.openai.com/v1');
     }
+
 
     /**
      * Generate audit question based on position and category
      */
 
-    public function generateQuestion($auditSession, $questionNumber)
+    public function generateQuestion($session, $questionNumber)
     {
-        $jabatan = $auditSession->employee->role;
-        
-        // Tentukan kategori berdasarkan urutan pertanyaan
-        $categories = ['leadership', 'teamwork', 'recruitment', 'effectiveness', 'innovation'];
-        $category = $categories[($questionNumber - 1) % count($categories)];
-        
-        $questionText = $this->generateAuditQuestion($jabatan, $category, $questionNumber);
+        try {
+            $response = Http::withToken(config('services.openai.api_key'))
 
-        return [
-            'question' => $questionText,
-            'type' => 'open-ended',
-            'category' => $category,
-            'max_score' => 5,
-        ];
+                ->timeout(30)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-3.5-turbo',
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are an audit assistant...'],
+                        ['role' => 'user', 'content' => 'Buat pertanyaan ke-' . $questionNumber],
+                    ],
+                    'temperature' => 0.7,
+                ]);
+
+            if (!$response->successful()) {
+                \Log::error('OpenAI API failed', ['status' => $response->status(), 'body' => $response->body()]);
+                throw new \Exception('OpenAI API Error: ' . $response->body());
+            }
+
+            $json = $response->json();
+
+            return [
+                'question' => $json['choices'][0]['message']['content'] ?? 'Pertanyaan tidak tersedia',
+                'type' => 'essay',
+                'category' => 'general',
+                'max_score' => 10,
+            ];
+        } catch (\Throwable $e) {
+            \Log::error('OpenAI Error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            throw new \Exception('Invalid response from OpenAI');
+        }
+    }
+
+
+    /**
+     * Generate role-specific question using advanced prompts
+     */
+    public function generateRoleSpecificQuestion($role, $category, $questionNumber)
+    {
+        $prompt = $this->buildRoleSpecificQuestionPrompt($role, $category, $questionNumber);
+        
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are an expert HR professional specializing in performance audits for securities/brokerage companies. Create insightful, role-specific questions that assess competencies relevant to the Indonesian market.'
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
+                ],
+                'max_tokens' => 200,
+                'temperature' => 0.7,
+            ]);
+
+            $data = $response->json();
+            
+            if (isset($data['choices'][0]['message']['content'])) {
+                return $data['choices'][0]['message']['content'];
+            }
+            
+            throw new Exception('Invalid response from OpenAI');
+            
+        } catch (Exception $e) {
+            Log::error('OpenAI Role-Specific Question Error: ' . $e->getMessage());
+            return $this->getFallbackRoleQuestion($role, $category, $questionNumber);
+        }
+    }
+
+    /**
+     * Analyze role-specific answer with detailed feedback
+     */
+    public function analyzeRoleSpecificAnswer($question, $answer, $category, $auditedRole, $templateRole)
+    {
+        $prompt = $this->buildRoleSpecificAnalysisPrompt($question, $answer, $category, $auditedRole, $templateRole);
+        
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->post($this->baseUrl . '/chat/completions', [
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are an expert performance analyst for securities companies. Provide detailed, constructive feedback in Indonesian language with specific improvement suggestions.'
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
+                ],
+                'max_tokens' => 500,
+                'temperature' => 0.3,
+            ]);
+
+            $data = $response->json();
+            
+            if (isset($data['choices'][0]['message']['content'])) {
+                $content = $data['choices'][0]['message']['content'];
+                return json_decode($content, true) ?: $this->getFallbackRoleAnalysis();
+            }
+            
+            throw new Exception('Invalid response from OpenAI');
+            
+        } catch (Exception $e) {
+            Log::error('OpenAI Role-Specific Analysis Error: ' . $e->getMessage());
+            return $this->getFallbackRoleAnalysis();
+        }
     }
 
 
@@ -73,7 +174,7 @@ class OpenAIService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl . '/chat/completions', [
-                'model' => 'gpt-4',
+                'model' => 'gpt-3.5-turbo',
                 'messages' => [
                     [
                         'role' => 'system',
@@ -114,7 +215,7 @@ class OpenAIService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl . '/chat/completions', [
-                'model' => 'gpt-4',
+                'model' => 'gpt-3.5-turbo',
                 'messages' => [
                     [
                         'role' => 'system',
@@ -156,7 +257,7 @@ class OpenAIService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl . '/chat/completions', [
-                'model' => 'gpt-4',
+                'model' => 'gpt-3.5-turbo',
                 'messages' => [
                     [
                         'role' => 'system',

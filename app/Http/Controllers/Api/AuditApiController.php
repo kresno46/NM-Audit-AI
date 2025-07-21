@@ -1,3 +1,4 @@
+<?php
 // app/Http/Controllers/Api/AuditApiController.php
 namespace App\Http\Controllers\Api;
 

@@ -50,7 +50,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const sessionCode = "{{ $auditSession->session_code }}";
-    const apiBase = '/api/v1/chatbot';
+    const apiBase = '/chatbot';
     let currentQuestionId = null;
 
     const questionBox = document.getElementById('question-box');
